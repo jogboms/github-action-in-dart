@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump_type:
+        type: choice
+        required: true
+        options:
+          - major
+          - minor
+          - patch
+          - build
+        default: "patch"
+        description: Version bump type
+      flavor:
+        type: choice
+        required: true
+        options:
+          - dev
+          - stage
+          - prod
+        default: "dev"
+        description: Flavor
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  default_run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+
+      - name: Bump package version
+        id: bump_version
+        run: dart run ./bin/bump_package_version.dart --versionBumpType '${{ inputs.version_bump_type }}' --flavor '${{ inputs.flavor }}'
+
+      - name: Echo
+        working-directory: .github/scripts
+        run: sh ./commit_release_changes.sh
+        env:
+          VERSION_NAME: ${{ steps.bump_version.outputs.version_name }}
+          BUILD_NUMBER: ${{ steps.bump_version.outputs.build_number }}
+          TAG: ${{ steps.bump_version.outputs.tag }}
+          VERSION: ${{ steps.bump_version.outputs.release_version }}
